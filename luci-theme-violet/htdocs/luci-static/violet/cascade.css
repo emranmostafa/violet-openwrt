@@ -426,16 +426,22 @@ pre {
 	overflow: hidden;
 }
 
-.brand-vendor {
-	flex: 0 0 auto;
-	padding: 3px 9px 4px;
+/* Hostname (or luci.violet.brand) in the accent block; long names get "…" */
+.brand-name {
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 100%;
+	padding: 3px 10px 4px;
 	border-radius: 4px;
 	background: var(--vl-accent-strong);
 	color: #ffffff;
 	font-size: 25px;
 	font-weight: 700;
 	line-height: 1.15;
-	letter-spacing: .02em;
+	letter-spacing: .01em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .brand-model {
@@ -3864,7 +3870,7 @@ body.vl-login {
 	gap: 10px;
 }
 
-.vl-login-brand .brand-vendor,
+.vl-login-brand .brand-name,
 .vl-login-brand .brand-model {
 	font-size: 30px;
 }
@@ -3875,6 +3881,8 @@ body.vl-login {
 }
 
 .vl-login-sub strong {
+	display: block;
+	margin-bottom: 2px;
 	color: var(--vl-fg);
 	font-weight: 600;
 }

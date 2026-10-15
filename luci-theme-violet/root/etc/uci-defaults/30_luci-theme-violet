@@ -19,15 +19,22 @@ set_opt() {
 
 set_opt themes.Violet /luci-static/violet
 
-# Theme options (see README): brand / model text and color mode
+# Theme options (see README). The sidebar shows the router's hostname;
+# luci.violet.brand / luci.violet.model can override it.
 if ! uci -q get luci.violet >/dev/null 2>&1; then
 	uci set luci.violet=internal
 	changed=1
 fi
 
-set_opt violet.brand 'ASUS'
-set_opt violet.model 'RT-AX59U'
 set_opt violet.mode 'dark'
+
+# Earlier versions saved "ASUS" / "RT-AX59U" as defaults; drop them so the
+# hostname is shown (custom values are kept)
+if [ "$(uci -q get luci.violet.brand)" = "ASUS" ] && [ "$(uci -q get luci.violet.model)" = "RT-AX59U" ]; then
+	uci -q delete luci.violet.brand
+	uci -q delete luci.violet.model
+	changed=1
+fi
 
 [ $changed = 1 ] && uci commit luci
 

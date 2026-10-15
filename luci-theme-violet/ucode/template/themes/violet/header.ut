@@ -10,16 +10,18 @@
 	const boardinfo = ubus.call('system', 'board');
 	const opts = cursor().get_all('luci', 'violet') ?? {};
 
-	// Brand defaults to the board model, e.g. "ASUS RT-AX59U" -> "ASUS" + "RT-AX59U"
-	const words = split(trim(boardinfo?.model ?? ''), /\s+/);
-	const brand = opts.brand || words[0] || 'OpenWrt';
-	const model = opts.model ?? join(' ', slice(words, 1));
+	const hostname = boardinfo?.hostname ?? 'OpenWrt';
+	const board = boardinfo?.model ?? '';
+
+	// Sidebar brand: the hostname, unless luci.violet.brand overrides it.
+	// luci.violet.model adds optional second text in the accent color.
+	const brand = opts.brand || hostname;
+	const model = opts.model ?? '';
 
 	// mode: dark (default) | light | auto (follow the OS)
 	const mode = opts.mode ?? 'dark';
 	const darkpref = (mode == 'light') ? 'false' : ((mode == 'auto') ? null : 'true');
 
-	const hostname = boardinfo?.hostname ?? '?';
 	const user = ctx.authuser ?? 'root';
 	const address = http.getenv('SERVER_ADDR') || hostname;
 
@@ -64,8 +66,8 @@
 		</script>
 
 		<aside id="vl-sidebar">
-			<a class="brand" href="{{ dispatcher.build_url() }}" title="{{ entityencode(boardinfo?.model ?? hostname, true) }}">
-				<span class="brand-vendor">{{ entityencode(brand) }}</span>
+			<a class="brand" href="{{ dispatcher.build_url() }}" title="{{ entityencode(board ? `${hostname} · ${board}` : hostname, true) }}">
+				<span class="brand-name">{{ entityencode(brand) }}</span>
 				{% if (model): %}<span class="brand-model">{{ entityencode(model) }}</span>{% endif %}
 			</a>
 
@@ -83,7 +85,7 @@
 				<span class="vl-avatar" aria-hidden="true">{{ entityencode(uc(substr(user, 0, 1))) }}</span>
 				<span class="vl-user-meta">
 					<span class="vl-user-name" style="display:block">{{ entityencode(user) }}</span>
-					<span class="vl-user-sub" style="display:block">{{ entityencode(hostname) }} &middot; {{ entityencode(address) }}</span>
+					<span class="vl-user-sub" style="display:block" title="{{ entityencode(board, true) }}">{{ entityencode(address) }}</span>
 				</span>
 				<a class="vl-logout" href="{{ dispatcher.build_url('admin/logout') }}" title="{{ _('Log out') }}" aria-label="{{ _('Log out') }}">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>

@@ -30,7 +30,8 @@ $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 function Find-Tool([string]$name) {
-    $cmd = Get-Command $name -ErrorAction SilentlyContinue
+    # Real executables only: an alias (e.g. "Set-Alias ssh ...") has no path of its own
+    $cmd = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($cmd) { return $cmd.Source }
 
     foreach ($dir in "$env:WINDIR\System32\OpenSSH",
