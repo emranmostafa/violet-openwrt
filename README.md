@@ -1,13 +1,13 @@
-# Violet – LuCI theme for OpenWrt 25.12
+# Violet – LuCI theme for OpenWrt
 
-A dark theme for the OpenWrt web interface (LuCI). It is built for an
-**ASUS RT-AX59U** running **OpenWrt 25.12.5**.
+A dark theme for the OpenWrt web interface (LuCI). It works on any router running
+**OpenWrt 23.05 or newer**. It was developed and tested on an ASUS RT-AX59U with OpenWrt 25.12.5.
 
 Designed by **Emran Mostafa**.
 
 - VS Code "Dark Modern" palette (`#181818` / `#1f1f1f` surfaces, `#cccccc` text) with a violet accent
 - Google Sans, bundled so it works without internet. Headings are bold and body text is regular weight
-- Sidebar with a brand block (**ASUS** in a violet block, **RT-AX59U** in teal) and
+- Sidebar showing the router's **hostname** in a violet brand block, with
   "Search sections" (Ctrl K / ⌘K). Uppercase section headings, icon items and a user card with
   log out
 - Title bar with breadcrumbs, VS Code-style tabs, and a violet status bar
@@ -76,18 +76,20 @@ Language and Style. The package does not change the active theme.
 
 ## Options
 
+The sidebar and login page show the router's hostname, set in **System › System › Hostname**.
+To show something else:
+
 ```sh
-uci set luci.violet.brand='ASUS'       # text in the violet block
-uci set luci.violet.model='RT-AX59U'   # text in the second color
+uci set luci.violet.brand='HomeLab'    # text in the violet block (default: hostname)
+uci set luci.violet.model='Main AP'    # optional second text in the accent color
 uci set luci.violet.mode='dark'        # dark | light | auto (follow the OS)
 uci commit luci
 ```
 
-If you delete `brand`/`model` (`uci delete luci.violet.brand`), they are taken from the
-board name automatically ("ASUS RT-AX59U").
+To go back to the hostname, run `uci delete luci.violet.brand; uci delete luci.violet.model; uci commit luci`.
 
 Colors are CSS variables at the top of `htdocs/luci-static/violet/cascade.css`. For example,
-`--vl-accent` is the violet and `--vl-model` is the model color.
+`--vl-accent` is the violet and `--vl-model` is the color of the optional second text.
 
 ## How the device lists work
 
@@ -115,6 +117,23 @@ Add `?mode=light` to the URL for the light variant. The double-click version use
 scripts in `preview\modules.js`. `serve.js` refreshes that copy automatically, or you can run
 `node preview\build.js` after editing without the server.
 
+## Extra: internet status light (ASUS RT-AX59U)
+
+`extras/led-internet/` is a small service for the RT-AX59U's status light. It is separate from
+the theme:
+
+| State | Light |
+|---|---|
+| Booting / rebooting | purple (red + blue) |
+| Internet online | green, blinking with WAN traffic |
+| WAN link down or internet unreachable | solid red |
+
+Install it from Windows with `.\extras\led-internet\deploy.ps1`, or remove it with `-Uninstall`.
+The current state is kept as LED rules, which you can see in **System › LED Configuration**.
+Events are logged; see them with `logread -e led-internet`. Settings such as the WAN interface,
+ping targets and timings are at the top of `extras/led-internet/led-internet`. Other routers have
+different LED names (`ls /sys/class/leds`), so those need changing before it works there.
+
 ## Files
 
 ```
@@ -126,6 +145,7 @@ luci-theme-violet/
   ucode/template/themes/violet/              header.ut, footer.ut, sysauth.ut (login)
   root/etc/uci-defaults/30_luci-theme-violet registers the theme + default options
   root/usr/share/rpcd/acl.d/luci-theme-violet.json       read access for the dashboard
+extras/led-internet/                         status light service (RT-AX59U)
 install.sh   deploy.ps1   preview/
 ```
 

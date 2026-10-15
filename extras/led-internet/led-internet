@@ -1,0 +1,211 @@
+#!/bin/sh
+#
+# Status light for the ASUS RT-AX59U (OpenWrt):
+#
+#   purple (red + blue)  booting / rebooting, until the internet is reachable
+#   green, blinking      internet online; blinks with WAN traffic (tx/rx)
+#   solid red            WAN link down, or the internet is not reachable
+#
+# Installed as /usr/libexec/led-internet, started early in boot by
+# /etc/init.d/led-internet. Events are logged:  logread -e led-internet
+#
+# The current state is kept as three LED rules (led_status_red/green/blue),
+# visible in LuCI > System > LED Configuration. Changes made there to those
+# rules are overwritten by this service; change the settings below instead.
+
+WAN_IFACE="wan"                    # OpenWrt interface name (pppoe-wan runs on it)
+TARGETS="1.1.1.1 8.8.8.8 9.9.9.9"  # online if any of these answers a ping
+INTERVAL=5                         # seconds between checks
+FAILS_BEFORE_RED=2                 # failed checks in a row before showing red
+BOOT_GRACE=180                     # seconds after power-on to stay purple while the WAN comes up
+ACTIVITY="link tx rx"              # green: on while connected, blinks on transmit/receive
+
+LEDS="${LEDS:-/sys/class/leds}"
+UPTIME="${UPTIME:-/proc/uptime}"
+
+# ----- LED control (sysfs, only writes what differs, so no flicker) -----
+
+current_trigger() { # current_trigger <color>
+	local t
+	t="$(cat "$LEDS/$1:status/trigger" 2>/dev/null)"
+	case "$t" in *"["*) t="${t#*[}"; t="${t%%]*}" ;; esac
+	echo "$t"
+}
+
+led_fixed() { # led_fixed <color> <0|1>
+	local d="$LEDS/$1:status"
+	[ -d "$d" ] || return 0
+	if [ "$(current_trigger "$1")" = "none" ] && [ "$(cat "$d/brightness" 2>/dev/null)" = "$2" ]; then
+		return 0
+	fi
+	echo none > "$d/trigger"
+	echo "$2" > "$d/brightness"
+}
+
+led_netdev() { # led_netdev <color> <device>
+	local d="$LEDS/$1:status" m
+	[ -d "$d" ] || return 0
+	if [ "$(current_trigger "$1")" = "netdev" ] && [ "$(cat "$d/device_name" 2>/dev/null)" = "$2" ]; then
+		return 0
+	fi
+	echo netdev > "$d/trigger"
+	echo "$2" > "$d/device_name"
+	for m in link tx rx; do
+		case " $ACTIVITY " in
+			*" $m "*) echo 1 > "$d/$m" ;;
+			*) echo 0 > "$d/$m" ;;
+		esac
+	done
+}
+
+# ----- LED rules in UCI (shown in LuCI; written only when something changed) -----
+
+dirty=0
+
+uci_set() { # uci_set <option> <value>
+	[ "$(uci -q get "$1")" = "$2" ] && return 0
+	uci set "$1=$2"
+	dirty=1
+}
+
+uci_del() { # uci_del <option>
+	uci -q get "$1" >/dev/null || return 0
+	uci delete "$1"
+	dirty=1
+}
+
+rule() { # rule <color> <name> <off|on|netdev> [device]
+	local s="system.led_status_$1"
+	uci_set "$s" "led"
+	uci_set "$s.name" "$2"
+	uci_set "$s.sysfs" "$1:status"
+	case "$3" in
+		netdev)
+			uci_set "$s.trigger" "netdev"
+			uci_set "$s.dev" "$4"
+			uci_set "$s.mode" "$ACTIVITY"
+			uci_set "$s.default" "0"
+			;;
+		*)
+			if [ "$3" = "on" ]; then
+				uci_set "$s.trigger" "default-on"
+				uci_set "$s.default" "1"
+			else
+				uci_set "$s.trigger" "none"
+				uci_set "$s.default" "0"
+			fi
+			uci_del "$s.dev"
+			uci_del "$s.mode"
+			;;
+	esac
+}
+
+NAME_GREEN="Internet online (green, blinks with traffic)"
+NAME_RED="Internet down (solid red) / booting"
+NAME_BLUE="Booting (blue + red = purple)"
+
+show() { # show <booting|online|offline>
+	case "$1" in
+		booting)
+			led_fixed red 1;   rule red   "$NAME_RED"   on
+			led_fixed blue 1;  rule blue  "$NAME_BLUE"  on
+			led_fixed green 0; rule green "$NAME_GREEN" off
+			;;
+		online)
+			led_fixed red 0;   rule red   "$NAME_RED"   off
+			led_fixed blue 0;  rule blue  "$NAME_BLUE"  off
+			led_netdev green "$wan_dev"; rule green "$NAME_GREEN" netdev "$wan_dev"
+			;;
+		offline)
+			led_fixed green 0; rule green "$NAME_GREEN" off
+			led_fixed blue 0;  rule blue  "$NAME_BLUE"  off
+			led_fixed red 1;   rule red   "$NAME_RED"   on
+			;;
+	esac
+
+	if [ $dirty = 1 ]; then
+		uci commit system
+		dirty=0
+	fi
+}
+
+# ----- Connectivity -----
+
+wan_status() {
+	ubus call network.interface."$WAN_IFACE" status 2>/dev/null
+}
+
+link_up() {
+	[ "$(wan_status | jsonfilter -e '@.up')" = "true" ]
+}
+
+reachable() {
+	local t
+	for t in $TARGETS; do
+		ping -c 1 -W 2 -q "$t" >/dev/null 2>&1 && return 0
+	done
+	return 1
+}
+
+uptime_s() {
+	local up rest
+	read -r up rest < "$UPTIME"
+	echo "${up%%.*}"
+}
+
+# ----- Main -----
+
+wan_dev="pppoe-$WAN_IFACE"
+
+# "boot-state" is used when the service stops (reboot / shutdown), so the
+# next boot starts purple
+if [ "$1" = "boot-state" ]; then
+	show booting
+	exit 0
+fi
+
+state=""
+fails=0
+
+if [ "$(uptime_s)" -lt "$BOOT_GRACE" ]; then
+	state="booting"
+	show booting
+	logger -t led-internet "booting (purple)"
+fi
+
+while :; do
+	new="$state"
+
+	if ! link_up; then
+		new="offline"
+		reason="WAN link down"
+	elif reachable; then
+		new="online"
+		fails=0
+		dev="$(wan_status | jsonfilter -e '@.l3_device')"
+		[ -n "$dev" ] && wan_dev="$dev"
+	else
+		fails=$((fails + 1))
+		reason="internet not reachable"
+		[ "$fails" -ge "$FAILS_BEFORE_RED" ] && new="offline"
+	fi
+
+	# Stay purple during boot until online, or until the grace period ends
+	if [ "$state" = "booting" ] && [ "$new" != "online" ] && [ "$(uptime_s)" -lt "$BOOT_GRACE" ]; then
+		new="booting"
+	fi
+
+	if [ -n "$new" ] && [ "$new" != "$state" ]; then
+		state="$new"
+		case "$state" in
+			online)  logger -t led-internet "internet online (green, blinking on $wan_dev traffic)" ;;
+			offline) logger -t led-internet "internet offline: $reason (solid red)" ;;
+		esac
+	fi
+
+	# Applied every round: cheap (nothing is written unless it differs) and it
+	# undoes changes made by other boot scripts or by hand
+	[ -n "$state" ] && show "$state"
+
+	sleep "$INTERVAL"
+done

@@ -1,0 +1,19 @@
+#!/bin/sh /etc/rc.common
+# Status light: purple while booting, blinking green online, solid red offline.
+# Installed as /etc/init.d/led-internet
+
+START=11
+STOP=10
+USE_PROCD=1
+
+start_service() {
+	procd_open_instance
+	procd_set_param command /usr/libexec/led-internet
+	procd_set_param respawn
+	procd_close_instance
+}
+
+# On reboot / shutdown (or a manual stop) show purple, so the next boot starts purple
+service_stopped() {
+	/usr/libexec/led-internet boot-state
+}
