@@ -1,0 +1,115 @@
+{#
+ LuCI Violet theme - login page
+ Licensed to the public under the Apache License 2.0.
+
+ Rendered by the dispatcher instead of the stock sysauth template when this
+ theme is active. If it fails to render, LuCI falls back to the stock page.
+-#}
+
+{%
+	import { cursor } from 'uci';
+
+	const uci = cursor();
+	const boardinfo = ubus.call('system', 'board');
+	const opts = uci.get_all('luci', 'violet') ?? {};
+
+	const words = split(trim(boardinfo?.model ?? ''), /\s+/);
+	const brand = opts.brand || words[0] || 'OpenWrt';
+	const model = opts.model ?? join(' ', slice(words, 1));
+
+	const mode = opts.mode ?? 'dark';
+	const darkpref = (mode == 'light') ? 'false' : ((mode == 'auto') ? null : 'true');
+
+	const hostname = boardinfo?.hostname ?? '?';
+
+	let https_ports = uci.get('uhttpd', 'main', 'listen_https') ?? [];
+
+	https_ports = uniq(filter(
+		map(
+			(type(https_ports) == 'string') ? split(https_ports, /\s+/) : https_ports,
+			e => +(match(e, /\d+$/)?.[0] ?? 0)
+		),
+		p => (p > 0 && p <= 65535)
+	));
+
+	http.prepare_content('text/html; charset=UTF-8');
+-%}
+
+<!DOCTYPE html>
+<html lang="{{ dispatcher.lang }}" {{ darkpref ? `data-darkmode="${darkpref}"` : '' }}>
+	<head>
+		<meta charset="utf-8">
+		<title>{{ striptags(hostname) }} | {{ _('Log in') }}</title>
+		{% if (!darkpref): %}
+			<script>
+				var mediaQuery = window.matchMedia('(prefers-color-scheme: dark)'),
+				    rootElement = document.querySelector(':root'),
+				    setDarkMode = function(match) { rootElement.setAttribute('data-darkmode', match.matches) };
+
+				mediaQuery.addEventListener('change', setDarkMode);
+				setDarkMode(mediaQuery);
+			</script>
+		{% endif %}
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="darkreader-lock">
+		<meta name="theme-color" content="#1f1f1f">
+		<link rel="stylesheet" href="{{ media }}/cascade.css">
+		<link rel="icon" href="{{ media }}/logo.svg" sizes="any">
+	</head>
+
+	<body class="vl-login lang_{{ dispatcher.lang }}">
+		<form method="post" class="vl-login-card">
+			<div class="vl-login-brand">
+				<div class="brand">
+					<span class="brand-vendor">{{ entityencode(brand) }}</span>
+					{% if (model): %}<span class="brand-model">{{ entityencode(model) }}</span>{% endif %}
+				</div>
+				<div class="vl-login-sub">
+					<strong>{{ striptags(hostname) }}</strong> &middot; {{ _('Please enter your username and password.') }}
+				</div>
+			</div>
+
+			{% if (fuser): %}
+				<div class="alert-message error">
+					<p>{{ _('Invalid username and/or password! Please try again.') }}</p>
+				</div>
+			{% endif %}
+
+			<label class="vl-field">
+				<span>{{ _('Username') }}</span>
+				<input class="cbi-input-text" type="text" name="luci_username" value="{{ entityencode(duser ?? 'root', true) }}" autocomplete="username" autocapitalize="off" spellcheck="false">
+			</label>
+
+			<label class="vl-field">
+				<span>{{ _('Password') }}</span>
+				<input class="cbi-input-text" type="password" name="luci_password" autocomplete="current-password">
+			</label>
+
+			<button type="submit" class="btn cbi-button cbi-button-apply important vl-login-submit">{{ _('Log in') }}</button>
+
+			<div class="vl-login-foot">
+				{{ version?.distname ?? 'OpenWrt' }} {{ version?.distversion ?? '' }}<br>
+				Designed by Emran Mostafa | Powered by LuCI
+			</div>
+		</form>
+
+		<script>
+			var input = document.getElementsByName('luci_password')[0];
+
+			if (input)
+				input.focus();
+
+			if (document.location.protocol != 'https:') {
+				{{ sprintf('%J', https_ports) }}.forEach(function(port) {
+					var url = 'https://' + window.location.hostname + ':' + port + window.location.pathname;
+					var img = new Image();
+
+					img.onload = function() { window.location = url };
+					img.src = 'https://' + window.location.hostname + ':' + port + '{{ resource }}/icons/loading.svg?' + Math.random();
+
+					setTimeout(function() { img.src = '' }, 5000);
+				});
+			}
+		</script>
+	</body>
+</html>

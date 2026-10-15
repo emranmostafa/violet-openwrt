@@ -1,0 +1,133 @@
+{#
+ LuCI Violet theme
+ Licensed to the public under the Apache License 2.0.
+-#}
+
+{%
+	import { getuid, getspnam } from 'luci.core';
+	import { cursor } from 'uci';
+
+	const boardinfo = ubus.call('system', 'board');
+	const opts = cursor().get_all('luci', 'violet') ?? {};
+
+	// Brand defaults to the board model, e.g. "ASUS RT-AX59U" -> "ASUS" + "RT-AX59U"
+	const words = split(trim(boardinfo?.model ?? ''), /\s+/);
+	const brand = opts.brand || words[0] || 'OpenWrt';
+	const model = opts.model ?? join(' ', slice(words, 1));
+
+	// mode: dark (default) | light | auto (follow the OS)
+	const mode = opts.mode ?? 'dark';
+	const darkpref = (mode == 'light') ? 'false' : ((mode == 'auto') ? null : 'true');
+
+	const hostname = boardinfo?.hostname ?? '?';
+	const user = ctx.authuser ?? 'root';
+	const address = http.getenv('SERVER_ADDR') || hostname;
+
+	http.prepare_content('text/html; charset=UTF-8');
+-%}
+
+<!DOCTYPE html>
+<html lang="{{ dispatcher.lang }}" {{ darkpref ? `data-darkmode="${darkpref}"` : '' }}>
+	<head>
+		<meta charset="utf-8">
+		<title>{{ striptags(`${hostname}${dispatched?.title ? ` | ${_(dispatched.title)}` : ''}`) }}</title>
+		{% if (!darkpref): %}
+			<script>
+				var mediaQuery = window.matchMedia('(prefers-color-scheme: dark)'),
+				    rootElement = document.querySelector(':root'),
+				    setDarkMode = function(match) { rootElement.setAttribute('data-darkmode', match.matches) };
+
+				mediaQuery.addEventListener('change', setDarkMode);
+				setDarkMode(mediaQuery);
+			</script>
+		{% endif %}
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="darkreader-lock">
+		<meta name="theme-color" content="#181818">
+		<link rel="preload" href="{{ media }}/fonts/GoogleSans-latin.woff2" as="font" type="font/woff2" crossorigin>
+		<link rel="stylesheet" href="{{ media }}/cascade.css">
+		<link rel="icon" href="{{ media }}/logo.svg" sizes="any">
+		{% if (node?.css): %}
+		<link rel="stylesheet" href="{{ resource }}/{{ node.css }}">
+		{% endif %}
+		{% if (css): %}
+		<style title="text/css">{{ css }}</style>
+		{% endif %}
+		<script src="{{ dispatcher.build_url('admin/translations', dispatcher.lang) }}"></script>
+		<script src="{{ resource }}/cbi.js"></script>
+	</head>
+
+	<body class="lang_{{ dispatcher.lang }} {{ entityencode(striptags(node?.title ?? ''), true) }}" data-page="{{ entityencode(join('-', ctx.request_path), true) }}">
+		{% if (!blank_page): %}
+		<script>
+			try { if (window.innerWidth > 900 && localStorage.getItem('vl-collapsed') === '1') document.body.classList.add('vl-collapsed'); } catch (e) {}
+		</script>
+
+		<aside id="vl-sidebar">
+			<a class="brand" href="{{ dispatcher.build_url() }}" title="{{ entityencode(boardinfo?.model ?? hostname, true) }}">
+				<span class="brand-vendor">{{ entityencode(brand) }}</span>
+				{% if (model): %}<span class="brand-model">{{ entityencode(model) }}</span>{% endif %}
+			</a>
+
+			<div class="vl-search">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+				<input type="search" id="vl-search" placeholder="{{ _('Search sections') }}" autocomplete="off" spellcheck="false" aria-label="{{ _('Search sections') }}">
+				<kbd id="vl-search-kbd">Ctrl K</kbd>
+			</div>
+
+			<nav id="vl-nav">
+				<ul class="nav" id="topmenu" style="display:none"></ul>
+			</nav>
+
+			<div class="vl-user">
+				<span class="vl-avatar" aria-hidden="true">{{ entityencode(uc(substr(user, 0, 1))) }}</span>
+				<span class="vl-user-meta">
+					<span class="vl-user-name" style="display:block">{{ entityencode(user) }}</span>
+					<span class="vl-user-sub" style="display:block">{{ entityencode(hostname) }} &middot; {{ entityencode(address) }}</span>
+				</span>
+				<a class="vl-logout" href="{{ dispatcher.build_url('admin/logout') }}" title="{{ _('Log out') }}" aria-label="{{ _('Log out') }}">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+				</a>
+			</div>
+		</aside>
+		<div id="vl-scrim"></div>
+
+		<div id="vl-main">
+		<header>
+			<button type="button" id="vl-toggle" title="{{ _('Toggle sidebar') }}" aria-label="{{ _('Toggle sidebar') }}">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg>
+			</button>
+			<div id="vl-crumbs"><span class="crumb">{{ striptags(dispatched?.title ? _(dispatched.title) : hostname) }}</span></div>
+			<div id="indicators" class="pull-right"></div>
+		</header>
+
+		<div id="maincontent" class="container">
+			{% if (getuid() == 0 && getspnam('root')?.pwdp === ''): %}
+				<div class="alert-message warning">
+					<h4>{{ _('No password set!') }}</h4>
+					<p>{{ _('There is no password set on this router. Please configure a root password to protect the web interface.') }}</p>
+					{% if (dispatcher.lookup("admin/system/admin")): %}
+					  <div class="right"><a class="btn" href="{{ dispatcher.build_url("admin/system/admin") }}">{{ _('Go to password configuration...') }}</a></div>
+					{% endif %}
+				</div>
+			{% endif %}
+
+			{% if (boardinfo.rootfs_type == "initramfs"): %}
+				<div class="alert-message warning">
+					<h4>{{ _('System running in recovery (initramfs) mode.') }}</h4>
+					<p>{{ _('No changes to settings will be stored and are lost after rebooting. This mode should only be used to install a firmware upgrade') }}</p>
+					{% if (dispatcher.lookup("admin/system/flash")): %}
+					  <div class="right"><a class="btn" href="{{ dispatcher.build_url("admin/system/flash") }}">{{ _('Go to firmware upgrade...') }}</a></div>
+					{% endif %}
+				</div>
+			{% endif %}
+
+			<noscript>
+				<div class="alert-message warning">
+					<h4>{{ _('JavaScript required!') }}</h4>
+					<p>{{ _('You must enable JavaScript in your browser or LuCI will not work properly.') }}</p>
+				</div>
+			</noscript>
+
+			<div id="tabmenu" style="display:none"></div>
+		{% endif %}

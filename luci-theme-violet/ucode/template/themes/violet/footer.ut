@@ -1,0 +1,34 @@
+{#
+ LuCI Violet theme
+ Licensed to the public under the Apache License 2.0.
+-#}
+
+{% const boardinfo = ubus.call('system', 'board'); %}
+
+		{% if (!blank_page): %}
+		</div>
+		<footer>
+			<a class="sb-item sb-remote" href="{{ dispatcher.build_url() }}" title="{{ _('Hostname') }}">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15-4-4 4-4M17 9l4 4-4 4"/></svg>
+				{{ striptags(boardinfo?.hostname ?? '?') }}
+			</a>
+			<a class="sb-item sb-hide-sm" href="{{ entityencode(version.disturl ?? '#', true) }}" target="_blank" rel="noreferrer" title="{{ entityencode(`${version.distname} ${version.distversion} ${version.distrevision}`, true) }}">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2"/><circle cx="6" cy="19" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 7v10M18 10c0 4-6 3-12 7"/></svg>
+				{{ version.distname }} {{ version.distversion }}
+			</a>
+			{% if (lua_active): %}
+				<span class="sb-item sb-dim sb-hide-sm">{{ _('Lua compatibility mode active') }}</span>
+			{% endif %}
+			<span class="sb-spacer"></span>
+			<ul class="breadcrumb" id="modemenu" style="display:none"></ul>
+			<span class="sb-item sb-credit">
+				<span>Designed by Emran Mostafa</span>
+				<span class="sb-sep" aria-hidden="true">|</span>
+				<a href="https://github.com/openwrt/luci" target="_blank" rel="noreferrer" title="{{ entityencode(`${version.luciname} ${version.luciversion}`, true) }}">Powered by LuCI</a>
+			</span>
+		</footer>
+		</div>
+		<script>L.require('menu-violet')</script>
+		{% endif %}
+	</body>
+</html>

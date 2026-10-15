@@ -1,0 +1,16 @@
+{
+	"luci-theme-violet-dashboard": {
+		"description": "Grant access to the Violet theme overview dashboard (internet speed, connected devices)",
+		"read": {
+			"file": {
+				"/proc/net/arp": [ "read" ]
+			},
+			"ubus": {
+				"file": [ "read" ],
+				"iwinfo": [ "assoclist" ],
+				"luci-rpc": [ "getDHCPLeases", "getHostHints", "getNetworkDevices", "getWirelessDevices" ],
+				"network.interface": [ "dump" ]
+			}
+		}
+	}
+}

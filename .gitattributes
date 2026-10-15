@@ -1,0 +1,4 @@
+# Router-side files (shell, ucode templates, JS, CSS) must keep LF line endings
+* text=auto eol=lf
+*.woff2 binary
+*.png binary

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<!-- Static preview of the Violet login page (mirrors themes/violet/sysauth.ut). -->
+<html lang="en" data-darkmode="true">
+<head>
+	<meta charset="utf-8">
+	<title>OpenWrt | Log in</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="../luci-theme-violet/htdocs/luci-static/violet/cascade.css">
+	<link rel="icon" href="../luci-theme-violet/htdocs/luci-static/violet/logo.svg" sizes="any">
+	<script>
+		var m = location.search.match(/mode=(light|dark)/);
+		if (m) document.documentElement.setAttribute('data-darkmode', m[1] == 'dark');
+	</script>
+</head>
+<body class="vl-login lang_en">
+	<form method="post" class="vl-login-card" onsubmit="return false">
+		<div class="vl-login-brand">
+			<div class="brand">
+				<span class="brand-vendor">ASUS</span>
+				<span class="brand-model">RT-AX59U</span>
+			</div>
+			<div class="vl-login-sub"><strong>OpenWrt</strong> &middot; Please enter your username and password.</div>
+		</div>
+		<label class="vl-field">
+			<span>Username</span>
+			<input class="cbi-input-text" type="text" name="luci_username" value="root">
+		</label>
+		<label class="vl-field">
+			<span>Password</span>
+			<input class="cbi-input-text" type="password" name="luci_password">
+		</label>
+		<button type="submit" class="btn cbi-button cbi-button-apply important vl-login-submit">Log in</button>
+		<div class="vl-login-foot">OpenWrt 25.12.5<br>Designed by Emran Mostafa | Powered by LuCI</div>
+	</form>
+	<script>
+		/* live reload when served by preview/serve.js */
+		if (/^https?:$/.test(location.protocol) && window.EventSource)
+			new EventSource('/__live').onmessage = function(ev) { if (ev.data == 'reload') location.reload(); };
+	</script>
+</body>
+</html>

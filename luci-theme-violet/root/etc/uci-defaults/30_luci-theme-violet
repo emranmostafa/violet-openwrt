@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# Register the Violet theme next to the existing themes.
+# The active theme (luci.main.mediaurlbase) is NOT changed here, so Bootstrap
+# or whatever theme is currently selected stays the default. Pick Violet in
+# System > System > Language and Style.
+
+changed=0
+
+set_opt() {
+	local key=$1
+	local val=$2
+
+	if ! uci -q get "luci.$key" >/dev/null 2>&1; then
+		uci set "luci.$key=$val"
+		changed=1
+	fi
+}
+
+set_opt themes.Violet /luci-static/violet
+
+# Theme options (see README): brand / model text and color mode
+if ! uci -q get luci.violet >/dev/null 2>&1; then
+	uci set luci.violet=internal
+	changed=1
+fi
+
+set_opt violet.brand 'ASUS'
+set_opt violet.model 'RT-AX59U'
+set_opt violet.mode 'dark'
+
+[ $changed = 1 ] && uci commit luci
+
+exit 0
